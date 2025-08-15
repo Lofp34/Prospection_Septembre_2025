@@ -1,0 +1,290 @@
+### Règle: generate-final copy — Construire la fiche prospect (v2) Test
+
+Ce document définit le format cible et le processus pour générer une fiche d’analyse complète et exploitable par l’IA Générative de prospection LSD, dans un UNIQUE fichier Markdown par entreprise. Les premieres données d'entreprise sont dans le fichier .Prospection_Septembre.csv
+
+Chemin de sortie: `Fiches/{SIREN}_{DENOMINATION}_synthese.md`
+
+### 0) Préambule — Résumé activité LSD (rappel synthétique)
+- LSD accompagne les PME dans la structuration et l’optimisation commerciale par des méthodes terrain et l’IA (bootcamp vente, parcours sur-mesure, outils IA propriétaires).
+- Vision 2030: référence nationale de l’accompagnement commercial structuré et augmenté.
+- Valeurs: Clarté, Responsabilité, Engagement, Croissance, Sincérité.
+
+### 1) But
+- Produire une fiche unique, claire et non redondante, avec:
+  - YAML initial exhaustif, pensé pour l’exploitation par l’IA.
+  - Corps Markdown structuré, incluant toutes les information du YAML en version lisible par l'utilisateur Humain.
+  - “Compte rendu exécutif” détaillé de m'entreprise, ses collaborateur, son secteur d'activité, pas seulement un résumé.
+
+### 2) Sortie attendue (structure du fichier)
+
+#### Partie A — Front-matter YAML (au tout début du fichier)
+- Mettre un front-matter YAML exhaustif délimité par `---` (début/fin) couvrant:
+
+```yaml
+identite:
+  siren: ""
+  siret_siege: ""
+  denomination: ""
+  marques: []
+  date_creation: "YYYY-MM-DD"
+  statut: "A|C|..."
+  nature_juridique:
+    code: ""
+    libelle: ""
+  activite:
+    ape:
+      code: ""
+      libelle: ""
+    section: ""
+    activites_secondaires: []
+  siege:
+    adresse: ""
+    code_postal: ""
+    commune: ""
+    departement: ""
+    region: ""
+    gps:
+      lat: null
+      lon: null
+  etablissements:
+    nombre: 0
+    liste:
+      - siret: ""
+        nic: ""
+        libelle: "siege|secondaire"
+        adresse: ""
+        code_postal: ""
+        commune: ""
+        region: ""
+        statut: "A|F|..."
+  effectifs:
+    tranche_code: ""
+    annee: null
+  certifications:
+    rge: false
+    qualiopi: false
+    iso: []
+    qualibat: []
+  implantations_declarees:
+    regions: []
+    pays: []
+
+contact:
+  site_web: ""
+  emails_scrapes: []      # emails trouvés sur le site (scraping HTML + mailto)
+  telephones: []
+  formulaire_contact_url: ""
+  reseaux_sociaux:
+    linkedin: ""
+    facebook: ""
+    instagram: ""
+    youtube: ""
+
+# Dirigeants: si une personne morale est présente, RESOUDRE son représentant personne physique
+# via l’API Recherche-Entreprises avant de finaliser la fiche.
+dirigeants:
+  - type: "PP|PM"
+    nom: ""                # pour PM: dénomination sociale
+    fonction: ""
+    representants_personne_morale:   # si type == PM
+      - nom: ""
+        fonction: ""
+        source: "recherche-entreprises"
+
+finances:
+  ca_euros:
+    - annee: 2023
+      valeur: null
+    - annee: 2022
+      valeur: null
+    - annee: 2021
+      valeur: null
+  rn_euros:
+    - annee: 2023
+      valeur: null
+    - annee: 2022
+      valeur: null
+    - annee: 2021
+      valeur: null
+  source: "csv|api"
+
+presence_digitale:
+  site_stack:
+    cms: ""
+    analytics: []
+    marketing: []
+    tracking: []
+    erp: []
+    autres: []
+    detection: "regex"
+  performance:
+    mobile_friendly: null
+    https: null
+
+linkedin:
+  company:
+    urn: ""
+    vanity: ""
+    url: ""
+    followers: null
+    employees_count: null
+    description: ""
+    jobs_open: []
+    posts_company:
+      # posts publiés par la page entreprise (si existants)
+      - date: "YYYY-MM-DD"
+        titre_ou_premiere_ligne: ""
+        url: ""
+  employees:
+    liste_principale:
+      - nom: ""
+        titre: ""
+        urn: ""
+        url: ""
+        headline: ""
+        experiences: []
+        competences: []
+        emails_publics: []
+        telephones_publics: []
+        localisations: []
+    activites_30j:
+      []
+
+scores:
+  priorite: 0        # +1 si salon <45j dans la région, +1 si tendance clé récente, etc.
+  maturite_digitale: 0
+  fit_sectoriel: 0
+
+tags: []
+
+generation:
+  date: "YYYY-MM-DD"
+  sources: []
+```
+
+#### Partie B — Corps Markdown (sections)
+- Présence digitale & stack technologique
+- LinkedIn (Entreprise + Collaborateurs) [fusionnée dans ce fichier]
+- Compte rendu exécutif (détaillé)
+- Gouvernance & structure
+- Salons & événements sectoriels
+- Médias professionnels & articles récents
+- Analyse micro / macro
+- Synthèse stratégique alignée LSD
+- Scripts multicanaux
+- Sources
+
+Notes:
+- Aucune redondance: LinkedIn n’est pas généré dans un second fichier. Tout est intégré ici.
+- Entreprise (API gratuite): completer toutes les informations disponibles sur le MCP data-gouv-server par plusieurs recherches internet ciblées (site de l'entreprise, réseaux sociaux officiels, dirigeants et leur actualité et informations présente sur internet, certifications, finances publiques si disponibles).
+- Rechercher l'opco de l'entreprise grace au site https://www.opco.fr/trouver/?search="code_naf-ou-ape" par exemple " https://www.opco.fr/trouver/?search=8559A " pour le code ape 8559A
+- LinkedIn (Entreprise): inclure URL directe, nombre d’abonnés, nombre d’employés, description officielle.
+- Profils individuels ciblés: limiter aux fonctions direction, commerciales et marketing; pour chaque profil, extraire un maximum d’informations de la fiche (nom, intitulé actuel et historique, compétences, coordonnées publiques, etc.) en un seul appel par profil.
+- Emails: inclure tous les emails trouvés sur le site (texte, mailto, formulaires si identifié).
+
+### 3) Étapes — Processus d’extraction et génération
+
+#### Étape 1 — Sélection CSV
+- Lire `Prospection_Septembre.csv`.
+- Champs requis: `Nom`, `SIREN`.
+
+#### Étape 2 — Identité & Données officielles
+- API `entreprise/{siren}?with_etablissements=true` → renseigner:
+  - Identité: siren, siret_siege, denomination, date_creation, statut, nature_juridique{code,libelle}
+  - Activité: APE (code, libellé), section, activités secondaires si dispo
+  - Localisation siège: adresse, CP, commune, département, région, coordonnées GPS
+  - Effectifs: tranche code et année
+  - IDCC si dispo
+  - Certifications (RGE, ISO, Qualibat…)
+  - Établissements secondaires: nombre + localisation
+- Dirigeants:
+  - Si un dirigeant est une personne morale (PM), RÉSOUDRE son représentant personne physique via Recherche-Entreprises, et l’ajouter dans `representants_personne_morale`.
+
+#### Étape 3 — Finances
+- Injecter CA/RN (≥ 3 ans si dispo), dernier millésime prioritaire.
+- Source: CSV ou API (indiquer dans YAML).
+
+#### Étape 4 — Stack technologique (Regex Checklist)
+- Télécharger HTML page d’accueil du site.
+- Détecter via regex (CMS, analytics, marketing, tracking, ERP, autres) selon la Regex Checklist.
+- Remplir `presence_digitale.site_stack` avec `detection: "regex"`.
+
+#### Étape 5 — LinkedIn
+- Company:
+  - Trouver URN entreprise, vanity, URL directe, followers, employees_count, description officielle, jobs ouverts.
+- Profils individuels ciblés:
+  - Identifier jusqu’à 20 profils en fonctions direction / commerciales / marketing.
+  - Pour chaque profil: URL, URN, nom/prénom, intitulé actuel, historique de postes, compétences clés, coordonnées publiques si visibles, localisation; extraire en un seul appel, vous remontez toutes les informations disponibles sur le profile de chaque collaborateur
+
+#### Étape 6 — Salons & événements sectoriels
+- Recherche internet par mots-clés secteur/NAF + région.
+- 5–10 événements pertinents (date, lieu, type, audience, URL, angle LSD).
+- +1 score priorité si salon < 45 jours dans la région.
+-Si pas de réponses pertinenetes, essayez d'autres mots clé plus suceptibles de fournir des réponses
+
+#### Étape 7 — Médias professionnels
+Rechercher sur internet, multipliez les requetes différentes pour avoir le meilleur résultat possible
+- 5–8 sources FR fiables.
+- 3–5 articles récents (titre, date, résumé, impact vente).
+- +1 score si tendance clé / changement réglementaire.
+
+#### Étape 8 — Compte rendu exécutif
+- Rédiger un compte rendu détaillé (pas un simple résumé), couvrant: l'ensemble des informations recueillies lors de vos recherches puis rédigez les  angles d’approche pertinents pour LSD.
+- Tirer parti de toutes les sections précédentes pour donner de la matière exploitable à l’IA.
+
+#### Étape 9 — Scripts multicanaux
+- Email dirigeant, DM LinkedIn, appel téléphonique, adaptés aux signaux détectés (stack, événements, articles, posts collaborateurs).
+
+#### Étape 10 — Sources & contrôle
+- Lister toutes les sources en bas du fichier.
+- Vérifier YAML valide; liens cliquables.
+
+### 4) Contraintes et bonnes pratiques
+- Un seul fichier par entreprise; pas de second fichier "LinkedIn".
+- Compléter `emails_scrapes` par scraping simple (HTML + `mailto:`).
+- Respecter la structure YAML fournie; ne pas renommer les clés (ajouter des champs détaillés dans `linkedin.employees.liste_principale` si nécessaire).
+- Si une donnée est inconnue, laisser la valeur vide ou null, ne pas inventer.
+- Vérifier l’absence de redondances dans le corps Markdown.
+
+### 5) Modèle de sections Markdown (ordre recommandé)
+
+#### Présence digitale & stack technologique
+- Synthèse des détections (CMS, analytics, marketing, tracking, ERP), preuves si utile.
+
+#### LinkedIn (Entreprise + Profils individuels ciblés)
+- Page entreprise: URL directe, followers, employees_count, description officielle, jobs ouverts (URLs systématiques si présents).
+- Profils individuels (direction / commercial / marketing): pour chacun, URL du profil + informations détaillées (intitulé actuel, historique, compétences clés, coordonnées publiques si visibles et toutes les autres informations disponibles au travers de l'api).
+
+#### Compte rendu exécutif
+- Vision, valeurs, stratégie apparente, signaux d’achat, risques, angles LSD.
+
+#### Gouvernance & structure
+- Dirigeants (PP/PM + représentants), organigramme utile, répartition établissements.Informations ciblées trouvées sur internet (entreprise, dirigeants, collaborateurs, actualité métier, légal etc...)
+
+#### Salons & événements sectoriels
+- Liste priorisée; mentionner score +1 si <45j.
+
+#### Médias professionnels & articles récents
+- Sélection qualifiée; impacts sur la vente.
+
+#### Analyse micro / macro
+- Micro: positionnement, atouts, cibles, signaux.
+- Macro: tendances, concurrence, opportunités.
+
+#### Synthèse stratégique alignée LSD
+- Reco de plan de vente (12 semaines): objectifs, KPIs, tactiques.
+
+#### Scripts multicanaux
+- Email, DM, appel; personnalisés au contexte trouvé.
+
+#### Sources
+- Liste exhaustive et cliquable.
+
+### 6) Remarques d’implémentation
+- Si la page entreprise ne publie pas: le noter explicitement; s’appuyer sur les activités collaborateurs.
+- Toujours fournir l’URL de chaque activité LinkedIn (entreprise et collaborateurs).
+- Résoudre systématiquement les personnes morales dirigeantes pour récupérer les représentants personnes physiques.
+- Les clés YAML sont stables pour permettre un parsing robuste par l’IA.
+
+### 7) Conformité documentaire
+- Ce livrable doit être conforme aux orientations du document projet. Si le fichier `Doc/Description-projet.txt` est indisponible dans le workspace, appliquer la présente règle et demander le document au besoin lors d’une révision ultérieure.

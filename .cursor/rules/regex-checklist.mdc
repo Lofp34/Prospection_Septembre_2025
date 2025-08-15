@@ -1,0 +1,75 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+Voici la table complète de Regex Checklist pour que ton agent puisse détecter automatiquement les CMS, outils analytics, marketing, ERP et autres technologies directement depuis le HTML du site prospect.
+J’ai organisé ça par catégorie, avec pour chaque techno : le nom, usage, et pattern regex (au format compatible avec la plupart des moteurs regex).
+
+Regex Checklist — Détection Stack Technologique
+1. CMS
+Outil	Usage	Regex Pattern
+WordPress	CMS	`wp-content
+Shopify	eCommerce CMS	`cdn.shopify.com
+Drupal	CMS	`/sites/default/
+Joomla	CMS	`Joomla!
+Prestashop	eCommerce CMS	`prestashop.com
+Magento	eCommerce CMS	`Mage.Cookies
+Wix	Site builder	`wix.com
+Squarespace	Site builder	`squarespace.com
+Webflow	Site builder	`webflow.com
+2. Analytics
+Outil	Usage	Regex Pattern
+Google Analytics 4 (GA4)	Web analytics	G-[A-Z0-9]{6,}
+Google Analytics (UA)	Web analytics	UA-\d{4,}-\d+
+Google Tag Manager	Tag management	googletagmanager\.com/gtm\.js
+Matomo	Web analytics	`matomo.js
+Plausible	Web analytics	plausible\.io/js/plausible
+Hotjar	Session recording	static\.hotjar\.com/c/hotjar
+Clarity	Session recording	clarity\.ms/tag/
+3. Marketing Automation / CRM
+Outil	Usage	Regex Pattern
+HubSpot	CRM / Marketing	js\.hs-scripts\.com
+Salesforce Pardot	Marketing Automation	`pardot.com
+ActiveCampaign	Email marketing	trackcmp\.net
+Brevo (ex-Sendinblue)	Email marketing	sib\.automation\.com
+Marketo	Marketing Automation	munchkin\.js
+Mailchimp	Email marketing	list-manage\.com
+Klaviyo	Email marketing	klaviyo\.com/tracking
+4. Publicité / Tracking
+Outil	Usage	Regex Pattern
+Meta Pixel	Ads tracking	fbq\('track'
+LinkedIn Insight	Ads tracking	linkedin\.com/li\.js
+Bing UET	Ads tracking	bat\.bing\.com/bat\.js
+TikTok Pixel	Ads tracking	analytics\.tiktok\.com/i18n/pixel/events\.js
+Twitter Pixel	Ads tracking	static\.ads-twitter\.com
+5. ERP / Outils métier détectables
+
+(plus rare car souvent back-office, mais certains laissent des traces publiques)
+
+Outil	Usage	Regex Pattern
+Odoo	ERP / CRM	odoo\.com
+SAP Commerce	ERP / eCommerce	`sap.commerce
+Netsuite	ERP	netsuite\.com
+Sage	ERP	sage\.com
+6. Autres détections utiles
+Outil	Usage	Regex Pattern
+reCAPTCHA	Form security	google\.com/recaptcha
+Chatbot Drift	Chatbot	drift\.com
+Intercom	Chatbot / Support	widget\.intercom\.io
+Zendesk	Support	zdassets\.com
+Crisp	Chatbot	client\.crisp\.chat
+
+💡 Comment l’intégrer dans l’agent :
+
+Étape “Stack technologique” → télécharger HTML page d’accueil.
+
+Pour chaque catégorie, faire passer les regex et remplir le YAML :
+
+site_stack:
+  cms: "WordPress"
+  analytics: ["GA4", "Hotjar"]
+  marketing: ["HubSpot"]
+  tracking: ["Meta Pixel", "LinkedIn Insight"]
+  erp: []
+  autres: ["reCAPTCHA"]

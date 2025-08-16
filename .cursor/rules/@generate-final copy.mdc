@@ -2,44 +2,43 @@
 description: cette règle est appliquée quand l'utilisateur demande de générer fiche prospect
 alwaysApply: false
 ---
+# Règle Cursor — Pipeline séquentiel (v2.4+)
 
-# Règle Cursor — Pipeline séquentiel (v2.1)
-
-**But** : contraindre l’agent de Cursor à travailler **étape par étape**, à **sauver** après chaque étape, et à **enrichir progressivement** une fiche Markdown unique par entreprise, **sans exécuter les étapes en parallèle**.
+**But** : contraindre l’agent de Cursor à travailler **étape par étape**, à **sauver** après chaque étape, et à **enrichir progressivement** une fiche Markdown **unique** par entreprise, **sans paralléliser**. Sortie diff‑friendly, traçable, et conforme.
 
 ---
 
-## 0) Principes d’exécution (anti-parallélisme)
+## 0) Principes d’exécution (anti‑parallélisme)
 
-* **Séquentiel strict** : exécuter **S1 → S13** dans l’ordre. **Ne jamais** démarrer S(n+1) si S(n) n’est pas **DONE**.
-* **Boucle DO → CHECK → WRITE** à chaque étape :
+* **Séquentiel strict** : exécuter **S1 → S16** dans l’ordre. **Ne jamais** démarrer S(n+1) si S(n) n’est pas **DONE**.
+* **Boucle DO → CHECK → WRITE** à chaque étape :
 
-  * **DO** : effectuer les recherches/actions prévues.
-  * **CHECK** : vérifier données minimales, sinon **RETRY** (max 3, backoff 2^k s), sinon marquer **INCOMPLETE**.
-  * **WRITE** : **appliquer un patch unifié** sur le fichier de sortie pour **ajouter/mettre à jour uniquement** les zones concernées.
-* **Fichier unique par entreprise** : `Fiches/{SIREN}_{DENOMINATION}_synthese.md`.
-* **Idempotence** : si le fichier existe, **mettre à jour** en place (sans dupliquer sections/entrées YAML).
-* **Traçabilité** : tenir un journal minimal dans `logs/run_{run_id}.jsonl` (un objet JSON par étape).
-* **Champs inconnus** : laisser `null` ou `""` (jamais inventer). Toujours **citer la source** en bas.
-* **Conformité** : respecter ToS/lois. Pour LinkedIn, utiliser **seulement** les méthodes autorisées (ex : fournisseur MCP autorisé).
+  * **DO** : exécuter l’action prévue.
+  * **CHECK** : vérifier le minimum ; sinon **RETRY** (max 3, backoff 2^k s), sinon marquer **INCOMPLETE**.
+  * **WRITE** : renvoyer **un seul patch unifié** (bloc `diff`) qui **met à jour uniquement** les zones concernées.
+* **Fichier unique** : `Fiches/{SIREN}_{DENOMINATION}_synthese.md`.
+* **Idempotence** : mise à jour en place (aucun doublon de sections/entrées YAML).
+* **Traçabilité** : journal JSONL `logs/run_{run_id}.jsonl` (1 objet JSON par étape).
+* **Inconnu** : laisser `null` ou `""` (ne jamais inventer). **Citer toutes les sources** en bas.
+* **Conformité** : ToS/lois. LinkedIn via **HDW MCP** (endpoints de la Redoc) uniquement.
 
 ---
 
 ## 1) Pré‑setup
 
-* **Entrée** : `Prospection_Septembre.csv` (champs requis : `Nom`, `SIREN`).
-* **Règle de sélection** : traiter **un seul SIREN** par exécution.
-* **Normalisation** : valider que `SIREN` = 9 chiffres.
+* **Input** : `Prospection_Septembre.csv` (champs requis : `Nom`, `SIREN`).
+* **Sélection** : traiter **un seul SIREN** par exécution.
+* **Normalisation** : valider `SIREN` = 9 chiffres.
 
 ---
 
 ## 2) Gabarit du fichier de sortie
 
-Créer si absent, sinon ouvrir. Insérer/mettre à jour **front‑matter YAML** (inclure champs de gouvernance) puis sections Markdown vides.
+Créer si absent, sinon ouvrir. Insérer/mettre à jour **front‑matter YAML** (gouvernance) puis sections Markdown vides.
 
 ```yaml
 ---
-spec_version: "2.1"
+spec_version: "2.4"
 generator: "lsd-fichebot"
 run_id: "${UUID}"
 generated_at: "${ISO8601}"
@@ -62,7 +61,8 @@ identite:
   siege:
     adresse: ""
     code_postal: ""
-    commune: ""
+    commune: ""              # libellé ex: "Mauguio"
+    code_insee_commune: ""    # ex: "34154"
     departement: ""
     region: ""
     gps: { lat: null, lon: null }
@@ -83,6 +83,7 @@ finances:
   ca_euros: [ { annee: 2023, valeur: null }, { annee: 2022, valeur: null }, { annee: 2021, valeur: null } ]
   rn_euros: [ { annee: 2023, valeur: null }, { annee: 2022, valeur: null }, { annee: 2021, valeur: null } ]
   source: ""
+  source_url: ""   # URL publique OU "file://Prospection_Septembre.csv"
 presence_digitale:
   site_stack: { cms: "", analytics: [], marketing: [], tracking: [], erp: [], autres: [], detection: "regex" }
   performance: { mobile_friendly: null, https: null }
@@ -91,12 +92,16 @@ linkedin:
   employees: { liste_principale: [], activites_30j: [] }
 scores: { priorite: 0, maturite_digitale: 0, fit_sectoriel: 0 }
 tags: []
-generation: { date: "${ISO8601}", sources: [] }
+generation: { date: "${ISO8601}", sources: [] }   # sources = URLs absolues; flags "k:v" autorisés
 ---
 
 ## Présence digitale & stack technologique
 
 ## LinkedIn (Entreprise + Profils individuels)
+
+## Analyse micro / macro
+
+## Synthèse stratégique alignée LSD
 
 ## Compte rendu exécutif
 
@@ -106,119 +111,166 @@ generation: { date: "${ISO8601}", sources: [] }
 
 ## Médias professionnels & articles récents
 
-## Analyse micro / macro
-
-## Synthèse stratégique alignée LSD
-
 ## Scripts multicanaux
+
+## Entreprises liées aux dirigeants (URLs)
 
 ## Sources
 ```
 
+> L’ordre des sections est **intentionnel** : analyse → synthèse → narration → actions.
+
 ---
 
-## 3) Étapes séquentielles (S1 → S13)
+## 3) Étapes séquentielles (S1 → S16)
 
 ### S1 — Initialisation
 
-* **DO** : lire CSV, sélectionner SIREN, créer chemin `Fiches/{SIREN}_{DENOMINATION}_synthese.md` (DENOMINATION vide si inconnue).
-* **WRITE** : insérer gabarit + `run_id` + `generated_at`.
-* **CHECK** : fichier présent, front‑matter parsable.
+* **DO** : lire le CSV, sélectionner le SIREN, créer `Fiches/{SIREN}_{DENOMINATION}_synthese.md` (DENOMINATION vide si inconnue).
+* **WRITE** : insérer le gabarit + `run_id` + `generated_at`.
+* **CHECK** : fichier présent, front‑matter parsable.
 
-### S2 — Identité & Données officielles (API Entreprise)
+### S2 — Identité & Données officielles (**INSEE — Sirene V3**)
 
-* **DO** : appeler `entreprise/{siren}?with_etablissements=true` → remplir `identite.*`, `etablissements`, `effectifs`.
-* **WRITE** : patch YAML uniquement sur ces clés; ajouter source en bas.
-* **CHECK** : `identite.siret_siege` non vide.
+* **DO** :
+
+  * `GET /entreprises/sirene/V3/siren/{siren}` → **unité légale** (dénomination, nature juridique, APE, effectifs si dispo).
+  * `GET /entreprises/sirene/V3/siret?q=siren:{siren}` → **liste établissements** ; identifier **le siège**.
+* **WRITE** : patch `identite.*`, `etablissements.*`. Si `etablissements.nombre > 0` → **exiger ≥1 entrée** dans `etablissements.liste` **ou** marquer **INCOMPLETE**.
+* **CHECK** :
+
+  * `identite.siret_siege` non vide ;
+  * `siege.commune` **n’est pas** un code INSEE (rejeter si `^\d{5}$`) ;
+  * si `etablissements.nombre > 0` ET `liste` vide ⇒ **INCOMPLETE**.
 
 ### S3 — Dirigeants & résolution PM → PP
 
-* **DO** : lister dirigeants; si **PM**, résoudre représentants **PP** via Recherche‑Entreprises.
-* **WRITE** : compléter `dirigeants[*].representants_personne_morale`.
-* **CHECK** : au moins 1 dirigeant présent.
+* **DO** : lister dirigeants (source légale). Si un dirigeant est **PM**, tenter la résolution du représentant **PP** via **Recherche‑Entreprises** (service public) ou autres sources légales.
+* **WRITE** : compléter `dirigeants[*].representants_personne_morale` si trouvé.
+* **CHECK** : ≥ 1 dirigeant présent (PP ou PM).
 
 ### S4 — Finances (CSV ou API)
 
-* **DO** : collecter CA/RN (≥ 3 ans si dispo), prioriser dernier millésime; renseigner `finances.source`.
-* **WRITE** : patch des tableaux `ca_euros` / `rn_euros`.
-* **CHECK** : présence d’au moins une valeur non nulle.
+* **DO** : collecter CA/RN (≥ 3 ans si dispo) ; prioriser le dernier millésime ; renseigner `finances.source` et **obligatoirement** `finances.source_url` si une valeur non nulle est écrite.
+* **WRITE** : patch `ca_euros` / `rn_euros` + `source`/`source_url`.
+* **CHECK** : ≥ 1 valeur non nulle ; `source_url` non vide si valeur présente.
 
 ### S5 — Contact & Présence digitale
 
-* **DO** : détecter **site\_web**; télécharger HTML de la page d’accueil; extraire emails `mailto:` + texte; appliquer **Regex Checklist** (CMS, analytics, marketing, tracking, ERP); tester HTTPS & indices mobile.
-* **WRITE** : `contact.*` + `presence_digitale.*`.
-* **CHECK** : `contact.site_web` défini.
+* **DO** : détecter `site_web` ; télécharger page d’accueil ; extraire emails (`mailto:` + texte) ; **Regex Checklist** (CMS, analytics, marketing, tracking, ERP) ; tester **HTTPS** & indices **mobile‑friendly**.
+* **WRITE** : `contact.*` + `presence_digitale.*`.
+* **CHECK** : `contact.site_web` défini ; **ne pas dupliquer** GTM en analytics/marketing/tracking. Si GA4/Matomo/HubSpot non prouvés → laisser vide.
 
-### S6 — OPCO (NAF/APE)
+### S6 — OPCO (**SIRET → France Compétences | IDCC → OPCO | APE fallback**)
 
-* **DO** : rechercher sur opco.fr à partir de `identite.activite.ape.code`; noter résultat.
-* **WRITE** : ajouter tag `opco:<code>` et citer URL en **Sources**.
-* **CHECK** : tag ajouté **ou** mention « non déterminé ».
+* **DO** :
 
-### S7 — LinkedIn (Entreprise)
+  1. Tenter **France Compétences – « Quel est mon OPCO »** via **SIRET** (interaction/driver autorisé). Si libellé renvoyé → consigner **tel quel**.
+  2. Sinon, déterminer **l’IDCC** (convention collective) via sources officielles, puis **mapper IDCC → OPCO**.
+  3. Sinon, **APE → OPCO** (indicatif).
+* **WRITE** : ajouter un **tag** `opco:<LIBELLE>`. Ajouter dans `generation.sources` : `opco_method:siret|idcc|ape` + **URL(s) consultées**.
+* **CHECK** : présence d’un tag `opco:*` **ou** statut **INCOMPLETE** documenté.
 
-* **DO** : via méthode autorisée uniquement : URN, vanity, URL, followers, employees\_count, description, jobs ouverts (URLs), derniers posts.
-* **WRITE** : `linkedin.company.*`.
-* **CHECK** : `linkedin.company.url` défini.
+### S7 — LinkedIn (Entreprise) via **HDW MCP**
 
-### S8 — LinkedIn (Profils dirigeants/commerciaux/marketing)
+* **DO** : récupérer (endpoints documentés Redoc HDW) : `urn`, `vanity`, `url`, `followers`, `employees_count`, `description`, **jobs\_open (URLs)**, **posts\_company** (date, 1ère ligne, URL).
+* **WRITE** : patch `linkedin.company.*` et **forcer** `contact.reseaux_sociaux.linkedin = linkedin.company.url`.
+* **CHECK** : `linkedin.company.url` défini **ET** `contact.reseaux_sociaux.linkedin` = cette URL. Si `followers`/`posts_company` indisponibles → noter `linkedin_company_partial` dans `generation.sources`.
 
-* **DO** : 5 à 20 profils max; pour chacun : nom, titre, URL, headline, expériences, compétences, coordonnées publiques, localisation.
-* **WRITE** : append distinct à `linkedin.employees.liste_principale` (dé‑dupe par URL/URN).
-* **CHECK** : ≥ 3 profils ou noter « écosystème LinkedIn peu visible ».
+### S8 — LinkedIn (Employés — **1ère page uniquement, URLs**)
+
+* **DO** : depuis la page **Entreprise** LinkedIn (via **HDW MCP uniquement**), ouvrir l’onglet **Employés** et **extraire toutes les URLs** visibles sur **la 1ère page**. **Aucune pagination**, **aucune recherche** d’employés.
+* **WRITE** : `linkedin.employees.liste_principale = [{ url }, ...]` (dé‑dupe stricte par URL). Ajouter dans `generation.sources` : `employees_capture_method:first_page_urls` + **URL de la page entreprise utilisée**.
+* **CHECK** : **≥ 10 URLs** si la 1ʳᵉ page en expose ≥10 ; sinon ajouter `ecosysteme_linkedin_faible` dans `generation.sources`.
 
 ### S9 — Salons & événements sectoriels
 
-* **DO** : 5–10 événements (date, lieu, audience, URL, angle LSD). Si < 45j et dans la région : **+1 priorite**.
-* **WRITE** : section dédiée + mise à jour `scores.priorite`.
-* **CHECK** : ≥ 3 items valides.
+* **DO** : 5–10 événements (date, lieu, type, audience, URL, **angle LSD**). **N’accepter** que des événements à **≤ 180 jours**. Si < 45j et **dans la région du siège** → **+2 priorite**.
+* **WRITE** : section dédiée + mise à jour `scores.priorite`.
+* **CHECK** : ≥ 3 items valides avec **URLs**.
 
-### S10 — Médias professionnels & articles récents
+### S10 — Médias professionnels & **articles récents (avec LIENS)**
 
-* **DO** : 5–8 sources FR; 3–5 articles (titre, date, résumé, impact vente).
-* **WRITE** : section + **Sources** en bas.
-* **CHECK** : ≥ 3 articles ≤ 90j.
+* **DO** : 5–8 **sources FR fiables** ; pour chaque source, 3–5 **articles ≤ 90j** **avec URL**.
+* **WRITE** : pour chaque **source**, afficher **URL d’accueil**, puis les articles au format : `[Titre] — [YYYY-MM-DD] — [URL] — (résumé 1–2 phrases, impact vente)`.
+* **CHECK** : refuser tout article **sans URL** ou **sans date ISO**.
 
-### S11 — Scoring
+### S11 — Scoring (avec justification)
 
-* **DO** : calculer `priorite`, `maturite_digitale`, `fit_sectoriel` selon règles v2.1 (voir encadré ci‑dessous).
-* **WRITE** : patch `scores.*`.
-* **CHECK** : scores dans \[0..5].
+* **DO** : calculer `priorite`, `maturite_digitale`, `fit_sectoriel` selon **Règles v2.4** (ci‑dessous).
+* **WRITE** : patch `scores.*` + ajouter un bloc « **Justifications des scores** » (3 lignes max) **ou** des flags dédiés dans `generation.sources` : `score_priorite:+2_salon_local_YYYY-MM-DD`, `score_maturite:+1_https|+1_cms|...`, `score_fit:+1_naf_core|+1_taille`.
+* **CHECK** : scores ∈ \[0..5] et **au moins 1 justification** consignée.
 
-### S12 — Compte rendu exécutif
+### S12 — Analyse micro / macro
 
-* **DO** : synthèse **argumentée** (signaux d’achat, risques, angles LSD) en 300–600 mots.
-* **WRITE** : remplir section « Compte rendu exécutif ».
-* **CHECK** : références croisées présentes (stack, LinkedIn, événements, médias).
+* **DO** :
 
-### S13 — Scripts multicanaux & Sources
+  * **Micro** : positionnement, offres, cibles/personas, canaux d’acquisition, signaux d’achat, concurrents locaux (**≥5 points**). Sources : YAML (Sirene/stack), LinkedIn (company + employés 1ʳᵉ page), site web.
+  * **Macro** : tendances marché, réglementation, cycles conjoncturels, opportunités/menaces (**≥5 points**). Sources : médias pro (≤180j), notes sectorielles, événements.
+* **WRITE** : remplir « Analyse micro / macro » en **puces courtes référencées** (ajouter les URLs en « Sources »).
+* **CHECK** : ≥5 puces **Micro** + ≥5 puces **Macro** ; ≥3 sources externes ≤180j citées ; aucune affirmation sans source.
 
-* **DO** : 3 scripts (email dirigeant, DM LinkedIn, script appel) **contextualisés**.
-* **WRITE** : sections + **liste exhaustive des sources** (liens cliquables).
-* **CHECK** : aucune section vide; liens valides.
+### S13 — Synthèse stratégique alignée LSD
+
+* **DO** : formuler un **plan 12 semaines** aligné LSD :
+
+  * Objectifs **chiffrés** (ex. RDV, MQL, CA) + **3 KPIs**.
+  * **3 initiatives** par canal (email, LinkedIn, appel) avec message‑angle, audience, offre, next‑step.
+  * **3 risques** + **contre‑mesures**. Chaque initiative reliée à un **signal** (stack, LinkedIn, salon, article).
+* **WRITE** : remplir « Synthèse stratégique alignée LSD » (tableau ou listes structurées).
+* **CHECK** : objectifs quantifiés, KPIs définis, ≥3 initiatives reliées à des preuves, risques/mitigations présents.
+
+### S14 — Compte rendu exécutif
+
+* **DO** : synthèse narrative **300–600 mots** qui relie micro+macro aux choix stratégiques (citer **≥3 preuves** : stack, LinkedIn, 1 salon, 1 article récent).
+* **WRITE** : remplir « Compte rendu exécutif ».
+* **CHECK** : 300–600 mots ; références croisées explicites ; aucune contradiction avec les sections précédentes.
+
+### S15 — Scripts multicanaux & Sources
+
+* **DO** : 3 scripts contextualisés (email dirigeant, DM LinkedIn, script d’appel) **cohérents** avec les données YAML (ex. établissements vs « agences » marketing).
+* **WRITE** : sections + **liste exhaustive des sources** (liens `http(s)://`).
+* **CHECK** : aucune section vide ; liens valides.
+
+### S16 — Entreprises liées aux dirigeants (Recherche‑Entreprises)
+
+* **DO** : pour **chaque dirigeant** de type *personne physique* dont la **qualité** est de **direction** (ex. *Gérant, Co‑gérant, Président, Directeur général, Membre du directoire*) — **exclure** les rôles d’**audit** (*Commissaire aux comptes*, suppléant, CAC associé).
+
+  * Construire une **requête** `q="<NOM> <PRENOMS>"` (ajouter `annee_naissance` si dispo, ex. `"1957"`), puis appeler :
+
+    * `GET https://recherche-entreprises.api.gouv.fr/search?q=<q>&per_page=50&page=1` (paginer si nécessaire).
+  * Filtrer les résultats pour ne garder que les entreprises où la personne apparaît comme **dirigeant actif** (qualités de direction, **exclure** CAC). Utiliser, si possible, **région** du siège et/ou **SIREN** connus pour éviter les homonymes.
+  * Construire l’URL **annuaire-entreprises** à partir du **SIREN** : `https://annuaire-entreprises.data.gouv.fr/entreprise/{SIREN}` (ou le champ `url` si fourni).
+* **WRITE** : ajouter dans le **corps Markdown** la section « Entreprises liées aux dirigeants (URLs) » :
+
+  * Sous‑titre par dirigeant : `### <NOM Prénoms>`
+  * Liste **à puces d’URLs uniquement** (une URL par ligne, pas de titres).
+* **CHECK** : pour chaque dirigeant clé (direction), **≥ 1 URL** trouvée **ou** mention `Aucune autre entreprise trouvée`.
+* **LOG** : ajouter dans `generation.sources` : `dirigeants_companies_method:recherche-entreprises` et les **requêtes `q`** utilisées.
+* **LIMITES** : respecter \~**7 req/s** (backoff 2^k). En cas d’homonymes multiples, privilégier les entrées avec **qualité** exacte et la **zone géographique** pertinente.
 
 ---
 
-## 4) Règles de scoring (v2.1)
+## 4) Règles de scoring (v2.4)
 
-* **priorite \[0..5]** : +2 salon <45j dans la région; +1 tendance réglementaire ≤60j; +1 jobs commerciaux ouverts; +1 événement local ≤90j.
-* **maturite\_digitale \[0..5]** : +1 CMS moderne; +1 Analytics; +1 Marketing automation; +1 HTTPS OK; +1 indices mobile friendly.
-* **fit\_sectoriel \[0..5]** : adéquation NAF cible LSD + taille (effectifs/CA) + historique wins (si dispo).
+* **priorite \[0..5]** : +2 **salon <45j** dans la **région du siège** ; +1 **tendance réglementaire ≤60j** ; +1 **jobs commerciaux ouverts** ; +1 **événement local ≤90j**.
+* **maturite\_digitale \[0..5]** : +1 **CMS moderne** ; +1 **Analytics** ; +1 **Marketing automation** ; +1 **HTTPS OK** ; +1 **indices mobile friendly**.
+* **fit\_sectoriel \[0..5]** : adéquation **NAF** cœur LSD + **taille** (effectifs/CA) + **historique wins** (si dispo).
 
 ---
 
-## 5) Format de sortie — Patch unifié (exemples)
+## 5) Sortie — **Patch unifié** (exemple)
 
-**Toujours** répondre avec un **seul** bloc `diff` qui applique un patch minimal au fichier cible.
+**Toujours** répondre avec **un seul** bloc `diff`.
 
 ```diff
 *** Fiches/123456789_ACME_synthese.md	before
 --- Fiches/123456789_ACME_synthese.md	after
 @@
--spec_version: "2.1"
+-spec_version: "2.4"
 -run_id: "old"
 -generated_at: "2025-08-14T20:00:00Z"
-+spec_version: "2.1"
++spec_version: "2.4"
 +run_id: "0b1c-42f7"
 +generated_at: "2025-08-15T08:35:02Z"
 @@
@@ -233,21 +285,23 @@ generation: { date: "${ISO8601}", sources: [] }
 +  sources:
 +    - "https://annuaire-entreprises.data.gouv.fr/"
 +    - "https://www.acme.fr/"
++    - "employees_capture_method:first_page_urls"
++    - "opco_method:siret"
 ```
 
 ---
 
-## 6) Validation & CI locales
+## 6) Validation locale
 
-* **JSON Schema** : valider le **front‑matter YAML** (équivalent JSON) avant de clore S13.
-* **Liens** : vérifier qu’ils sont absolus et HTTP(S).
-* **Anti‑redondance** : chaque info ne doit apparaître **qu’une fois** (YAML **ou** corps explicatif).
+* **Front‑matter** : valider contre le **JSON Schema** interne (équivalent JSON du YAML) avant de clore S16.
+* **Liens** : garantir qu’ils sont absolus et **HTTP(S)**.
+* **Anti‑redondance** : une info n’apparaît **qu’une fois** (dans le YAML **ou** dans le corps explicatif).
 
 ---
 
 ## 7) Journal minimal (JSONL)
 
-Écrire une ligne par étape :
+Écrire une ligne par étape :
 
 ```json
 { "run_id":"0b1c-42f7", "step":"S7", "status":"DONE", "ts":"2025-08-15T08:52:10Z", "notes":"linkedin.company.url ok" }
@@ -257,13 +311,15 @@ generation: { date: "${ISO8601}", sources: [] }
 
 ## 8) Notes de conformité
 
-* **LinkedIn** : seulement via méthodes autorisées (ex : fournisseur MCP validé). Si non disponible : marquer la section **INCOMPLETE** et passer à S9.
-* **OPCO** : le mapping APE→OPCO est indicatif; consigner l’URL de la page consultée.
+* **Sirene V3 (INSEE)** : API officielle pour UL/établissements. Auth **OAuth2** requise.
+* **Recherche‑Entreprises** : utile pour **recherche/désambiguisation** et résolution **PM→PP** ; ne pas l’utiliser comme substitut à Sirene pour l’exhaustif.
+* **LinkedIn** : **HDW MCP uniquement** (Redoc). Si indisponible → **INCOMPLETE** et poursuivre.
+* **OPCO** : priorité **SIRET→France Compétences**, puis **IDCC→OPCO**, puis **APE (fallback)**. Toujours consigner la **méthode** et les **URLs**.
 
 ---
 
 ## 9) Rappels d’ergonomie
 
-* Écrire clair, concis, **sans jargon inutile**.
-* Toujours expliciter **les hypothèses** dans le **Compte rendu exécutif**.
-* Ne jamais supprimer les **sections** même vides ; préférer `N/A` + source manquante.
+* Clair, concis, **sans jargon**.
+* Énoncer les **hypothèses** dans l’« Analyse micro / macro » et la « Synthèse stratégique ».
+* Ne jamais supprimer les sections vides ; préférer `N/A` + raison.
